@@ -101,6 +101,10 @@ public class SdpExchangeApi(
 		{
 			return null;
 		}
+		else if (response.StatusCode != HttpStatusCode.OK)
+		{
+			throw new Exception($"Failed to get answer: {response.StatusCode}");
+		}
 
 		response.EnsureSuccessStatusCode();
 
