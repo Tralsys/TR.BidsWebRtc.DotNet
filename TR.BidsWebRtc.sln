@@ -5,6 +5,8 @@ VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TR.BidsWebRtc", "TR.BidsWebRtc\TR.BidsWebRtc.csproj", "{68DA74B5-C8AB-46AA-BCD3-3CD15D4C58E8}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TR.BidsWebRtc.Tests", "TR.BidsWebRtc.Tests\TR.BidsWebRtc.Tests.csproj", "{ACAC4BE1-B5C1-435A-A878-7C547E0124F1}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -18,5 +20,9 @@ Global
 		{68DA74B5-C8AB-46AA-BCD3-3CD15D4C58E8}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{68DA74B5-C8AB-46AA-BCD3-3CD15D4C58E8}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{68DA74B5-C8AB-46AA-BCD3-3CD15D4C58E8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{ACAC4BE1-B5C1-435A-A878-7C547E0124F1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{ACAC4BE1-B5C1-435A-A878-7C547E0124F1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{ACAC4BE1-B5C1-435A-A878-7C547E0124F1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{ACAC4BE1-B5C1-435A-A878-7C547E0124F1}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

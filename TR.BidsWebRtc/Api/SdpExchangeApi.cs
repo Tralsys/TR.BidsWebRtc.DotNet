@@ -19,7 +19,7 @@ public class SdpExchangeApi(
 	const string DEFAULT_BASE_URL = "https://bids-rtc.t0r.dev/signaling";
 	private readonly HttpClient _httpClient = httpClient;
 	private readonly ITokenManager _tokenManager = tokenManager;
-	private readonly string _baseUrl = baseUrl.EndsWith("/") ? baseUrl.Substring(0, baseUrl.Length - 1) : baseUrl;
+	private readonly string _baseUrl = baseUrl.EndsWith("/") ? baseUrl[..^1] : baseUrl;
 	public readonly Guid ClientId = clientId;
 
 	public SdpExchangeApi(
