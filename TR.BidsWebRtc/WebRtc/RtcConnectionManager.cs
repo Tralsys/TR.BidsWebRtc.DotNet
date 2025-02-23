@@ -136,18 +136,6 @@ public class RtcConnectionManager : IDisposable
 		RTCDataChannel dataChannel = await peerConnection.createDataChannel(DEFAULT_DATA_CHANNEL_LABEL);
 		_setupDataChannel(connectionInfo, dataChannel);
 
-		TaskCompletionSource<SDP> iceCandidateTask = new();
-		void onIceCandidate(RTCIceCandidate e)
-		{
-			if (!string.IsNullOrEmpty(e.candidate))
-			{
-				return;
-			}
-			iceCandidateTask.SetResult(peerConnection.localDescription.sdp);
-			peerConnection.onicecandidate -= onIceCandidate;
-		}
-		peerConnection.onicecandidate += onIceCandidate;
-
 		void onConnectionStateChange(RTCPeerConnectionState state)
 		{
 			if (state != RTCPeerConnectionState.connected)
@@ -162,7 +150,6 @@ public class RtcConnectionManager : IDisposable
 		RTCSessionDescriptionInit offer = peerConnection.createOffer();
 		await peerConnection.setLocalDescription(offer);
 
-		SDP offerSDP = await iceCandidateTask.Task;
 		var offerRegisterResult = await _sdpExchangeApi.RegisterOfferAsync(new RegisterOfferParams(
 			role: RoleToString(_role),
 			rawOffer: offer.sdp,
@@ -177,7 +164,6 @@ public class RtcConnectionManager : IDisposable
 		}
 		while (!_cts.Token.IsCancellationRequested)
 		{
-			// TODO: Answerチェック
 			var answerRes = await _sdpExchangeApi.GetAnswerAsync(connectionInfo.SdpId.Value);
 			if (_cts.Token.IsCancellationRequested)
 			{
@@ -231,23 +217,21 @@ public class RtcConnectionManager : IDisposable
 		var connectionInfo = _createRTCPeerConnection(offerInfo.SdpId);
 		RTCPeerConnection peerConnection = connectionInfo.PeerConnection;
 
-		TaskCompletionSource<SDP> iceCandidateTask = new();
-		void onIceCandidate(RTCIceCandidate e)
-		{
-			if (!string.IsNullOrEmpty(e.candidate))
-			{
-				return;
-			}
-			iceCandidateTask.SetResult(peerConnection.localDescription.sdp);
-			peerConnection.onicecandidate -= onIceCandidate;
-		}
-		peerConnection.onicecandidate += onIceCandidate;
-
 		peerConnection.SetRemoteDescription(SdpType.offer, SDP.ParseSDPDescription(offerInfo.RawOffer));
-		await iceCandidateTask.Task;
 		var answer = peerConnection.createAnswer();
 		await peerConnection.setLocalDescription(answer);
 		return new(offerInfo.SdpId, _sdpExchangeApi.ClientId, answer.sdp);
+	}
+
+	public void BroadcastMessage(byte[] message)
+	{
+		foreach (var connectionInfo in _establishedConnectionDict.Values)
+		{
+			foreach (var dataChannel in connectionInfo.DataChannelDict.Values)
+			{
+				dataChannel.send(message);
+			}
+		}
 	}
 
 	private static Role GetRoleFromString(string role)
