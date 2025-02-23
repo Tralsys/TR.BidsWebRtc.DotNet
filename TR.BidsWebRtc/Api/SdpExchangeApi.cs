@@ -43,7 +43,7 @@ public class SdpExchangeApi(
 	private static readonly MediaTypeHeaderValue JSON_MEDIA_TYPE = new("application/json");
 	private static readonly MediaTypeWithQualityHeaderValue JSON_MEDIA_TYPE_WITH_QUALITY = new("application/json");
 	const string REGISTER_OFFER_ENDPOINT = "/offer";
-	const string REGISTER_ANSWER_ENDPOINT = "/offer";
+	const string REGISTER_ANSWER_ENDPOINT = "/answer";
 
 	public async Task<RegisterOfferResult> RegisterOfferAsync(
 		RegisterOfferParams param
