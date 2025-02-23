@@ -26,7 +26,7 @@ public class RegisterOfferResult(
 	public static RegisterOfferResult FromJson(JsonElement root)
 	{
 		var registeredOffer = SDPOfferInfo.FromJson(root.GetProperty("registered_offer"));
-		var receivedOfferArray = root.GetProperty("received_offer_array").EnumerateArray().Select(SDPOfferInfo.FromJson).ToArray();
+		var receivedOfferArray = root.GetProperty("received_offers").EnumerateArray().Select(SDPOfferInfo.FromJson).ToArray();
 
 		return new RegisterOfferResult(
 			registeredOffer: registeredOffer,
