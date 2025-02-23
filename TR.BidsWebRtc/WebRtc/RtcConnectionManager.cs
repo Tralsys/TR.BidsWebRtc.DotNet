@@ -131,54 +131,61 @@ public class RtcConnectionManager : IDisposable
 	// TODO: 全体をtry-catchで囲む
 	private async Task _registerOfferAsync()
 	{
-		RTCConnectionInfo connectionInfo = _createRTCPeerConnection();
-		RTCPeerConnection peerConnection = connectionInfo.PeerConnection;
-		RTCDataChannel dataChannel = await peerConnection.createDataChannel(DEFAULT_DATA_CHANNEL_LABEL);
-		_setupDataChannel(connectionInfo, dataChannel);
-
-		void onConnectionStateChange(RTCPeerConnectionState state)
+		try
 		{
-			if (state != RTCPeerConnectionState.connected)
+			RTCConnectionInfo connectionInfo = _createRTCPeerConnection();
+			RTCPeerConnection peerConnection = connectionInfo.PeerConnection;
+			RTCDataChannel dataChannel = await peerConnection.createDataChannel(DEFAULT_DATA_CHANNEL_LABEL);
+			_setupDataChannel(connectionInfo, dataChannel);
+
+			void onConnectionStateChange(RTCPeerConnectionState state)
 			{
-				return;
+				if (state != RTCPeerConnectionState.connected)
+				{
+					return;
+				}
+				peerConnection.onconnectionstatechange -= onConnectionStateChange;
+				Task.Run(_registerOfferAsync);
 			}
-			peerConnection.onconnectionstatechange -= onConnectionStateChange;
-			Task.Run(_registerOfferAsync);
+			peerConnection.onconnectionstatechange += onConnectionStateChange;
+
+			RTCSessionDescriptionInit offer = peerConnection.createOffer();
+			await peerConnection.setLocalDescription(offer);
+
+			var offerRegisterResult = await _sdpExchangeApi.RegisterOfferAsync(new RegisterOfferParams(
+				role: RoleToString(_role),
+				rawOffer: offer.sdp,
+				establishedClients: [.. _establishedConnectionDict.Values.Where(x => x.ClientId is not null).Select(x => x.ClientId!.Value)]
+			));
+			connectionInfo.SdpId = offerRegisterResult.RegisteredOffer.SdpId;
+			Console.WriteLine($"Offer registered: {connectionInfo.SdpId}");
+			if (offerRegisterResult.ReceivedOfferArray is not null)
+			{
+				SDPAnswerInfo[] answerList = await Task.WhenAll(offerRegisterResult.ReceivedOfferArray.Select(_onOfferReceivedAsync)) ?? [];
+				await _sdpExchangeApi.RegisterAnswerAsync(answerList);
+			}
+			while (!_cts.Token.IsCancellationRequested)
+			{
+				var answerRes = await _sdpExchangeApi.GetAnswerAsync(connectionInfo.SdpId.Value);
+				if (_cts.Token.IsCancellationRequested)
+				{
+					dataChannel.close();
+					peerConnection.Dispose();
+					return;
+				}
+				if (answerRes is null)
+				{
+					await Task.Delay(ANSWER_CHECK_INTERVAL_MS);
+					continue;
+				}
+				peerConnection.SetRemoteDescription(SdpType.answer, SDP.ParseSDPDescription(answerRes.RawAnswer));
+				_establishedConnectionDict[connectionInfo.SdpId.Value] = connectionInfo;
+				break;
+			}
 		}
-		peerConnection.onconnectionstatechange += onConnectionStateChange;
-
-		RTCSessionDescriptionInit offer = peerConnection.createOffer();
-		await peerConnection.setLocalDescription(offer);
-
-		var offerRegisterResult = await _sdpExchangeApi.RegisterOfferAsync(new RegisterOfferParams(
-			role: RoleToString(_role),
-			rawOffer: offer.sdp,
-			establishedClients: [.. _establishedConnectionDict.Values.Where(x => x.ClientId is not null).Select(x => x.ClientId!.Value)]
-		));
-		connectionInfo.SdpId = offerRegisterResult.RegisteredOffer.SdpId;
-		Console.WriteLine($"Offer registered: {connectionInfo.SdpId}");
-		if (offerRegisterResult.ReceivedOfferArray is not null)
+		catch (Exception e)
 		{
-			SDPAnswerInfo[] answerList = await Task.WhenAll(offerRegisterResult.ReceivedOfferArray.Select(_onOfferReceivedAsync)) ?? [];
-			await _sdpExchangeApi.RegisterAnswerAsync(answerList);
-		}
-		while (!_cts.Token.IsCancellationRequested)
-		{
-			var answerRes = await _sdpExchangeApi.GetAnswerAsync(connectionInfo.SdpId.Value);
-			if (_cts.Token.IsCancellationRequested)
-			{
-				dataChannel.close();
-				peerConnection.Dispose();
-				return;
-			}
-			if (answerRes is null)
-			{
-				await Task.Delay(ANSWER_CHECK_INTERVAL_MS);
-				continue;
-			}
-			peerConnection.SetRemoteDescription(SdpType.answer, SDP.ParseSDPDescription(answerRes.RawAnswer));
-			_establishedConnectionDict[connectionInfo.SdpId.Value] = connectionInfo;
-			break;
+			Console.WriteLine($"Error: {e}");
 		}
 	}
 
