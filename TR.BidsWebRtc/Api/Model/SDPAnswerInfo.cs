@@ -27,7 +27,7 @@ public class SDPAnswerInfo(
 		writer.WriteString("sdp_id", SdpId);
 		// readonly
 		// writer.WriteString("answer_client_id", AnswerClientId);
-		writer.WriteString("answer", RawAnswer);
+		writer.WriteBase64String("answer", Encoding.UTF8.GetBytes(RawAnswer));
 		writer.WriteEndObject();
 	}
 
