@@ -30,8 +30,21 @@ public class RtcConnectionManager : IDisposable
 		public RTCPeerConnectionState ConnectionState => PeerConnection.connectionState;
 	}
 
+	public class OnDataGotEventArgs(
+		Guid clientId,
+		RTCDataChannel dataChannel,
+		byte[] data
+	) : EventArgs
+	{
+		public Guid ClientId { get; } = clientId;
+		public RTCDataChannel DataChannel { get; } = dataChannel;
+		public byte[] Data { get; } = data;
+	}
+
 	private readonly Dictionary<Guid, RTCConnectionInfo> _establishedConnectionDict = [];
 	public IReadOnlyDictionary<string, RTCDataChannel> GetDataChannelDict(Guid clientId) => _establishedConnectionDict[clientId].DataChannelDict;
+
+	public event EventHandler<OnDataGotEventArgs>? OnDataGot;
 
 	const string DEFAULT_DATA_CHANNEL_LABEL = "bids-rtc-data-main";
 	const int ANSWER_CHECK_INTERVAL_MS = 1000;
@@ -92,7 +105,9 @@ public class RtcConnectionManager : IDisposable
 					}
 					break;
 				case RTCPeerConnectionState.disconnected:
+#if DEBUG
 					Console.WriteLine($"Disconnected: {connectionInfo.SdpId}");
+#endif
 					if (connectionInfo.SdpId is not null)
 					{
 						var sdpId = connectionInfo.SdpId.Value;
@@ -100,7 +115,9 @@ public class RtcConnectionManager : IDisposable
 					}
 					break;
 				case RTCPeerConnectionState.failed:
+#if DEBUG
 					Console.WriteLine($"Failed: {connectionInfo.SdpId}");
+#endif
 					peerConnection.close();
 					if (connectionInfo.SdpId is not null)
 					{
@@ -109,7 +126,9 @@ public class RtcConnectionManager : IDisposable
 					}
 					break;
 				case RTCPeerConnectionState.closed:
+#if DEBUG
 					Console.WriteLine($"Closed: {connectionInfo.SdpId}");
+#endif
 					if (connectionInfo.SdpId is not null)
 					{
 						var sdpId = connectionInfo.SdpId.Value;
@@ -121,14 +140,19 @@ public class RtcConnectionManager : IDisposable
 
 		peerConnection.ondatachannel += (e) =>
 		{
+#if DEBUG
 			Console.WriteLine($"DataChannel received: {e.label}[{_role}]@{connectionInfo.SdpId}");
+#endif
 			_setupDataChannel(connectionInfo, e);
+			if (e.IsOpened)
+			{
+				connectionInfo.DataChannelDict[e.label] = e;
+			}
 		};
 
 		return connectionInfo;
 	}
 
-	// TODO: 全体をtry-catchで囲む
 	private async Task _registerOfferAsync()
 	{
 		try
@@ -158,7 +182,9 @@ public class RtcConnectionManager : IDisposable
 				establishedClients: [.. _establishedConnectionDict.Values.Where(x => x.ClientId is not null).Select(x => x.ClientId!.Value)]
 			));
 			connectionInfo.SdpId = offerRegisterResult.RegisteredOffer.SdpId;
+#if DEBUG
 			Console.WriteLine($"Offer registered: {connectionInfo.SdpId}");
+#endif
 			if (offerRegisterResult.ReceivedOfferArray is not null)
 			{
 				SDPAnswerInfo[] answerList = await Task.WhenAll(offerRegisterResult.ReceivedOfferArray.Select(_onOfferReceivedAsync)) ?? [];
@@ -185,7 +211,10 @@ public class RtcConnectionManager : IDisposable
 		}
 		catch (Exception e)
 		{
+			// TODO: 良い感じにエラー処理する
+#if DEBUG
 			Console.WriteLine($"Error: {e}");
+#endif
 		}
 	}
 
@@ -195,18 +224,24 @@ public class RtcConnectionManager : IDisposable
 		dataChannel.onerror += (e) => _onDataChannelError(connectionInfo, dataChannel, e);
 		dataChannel.onopen += () =>
 		{
+#if DEBUG
 			Console.WriteLine($"DataChannel opened for {connectionInfo.SdpId}[{_role}]@{dataChannel.label}");
 			dataChannel.send($"Hello, world! from {connectionInfo.SdpId}[{_role}]@{dataChannel.label}");
+#endif
 			connectionInfo.DataChannelDict[dataChannel.label] = dataChannel;
 		};
 		dataChannel.onmessage += (dc, protocol, data) =>
 		{
+#if DEBUG
 			Console.WriteLine($"DataChannel message from {connectionInfo.SdpId}[{_role}]@{dataChannel.label}: {data} (protocol: {protocol}, length: {data.Length})");
-			// TODO: Handle message
+#endif
+			OnDataGot?.Invoke(this, new OnDataGotEventArgs(connectionInfo.ClientId!.Value, dataChannel, data));
 		};
 		dataChannel.onclose += () =>
 		{
+#if DEBUG
 			Console.WriteLine($"DataChannel closed for {connectionInfo.SdpId}[{_role}]@{dataChannel.label}");
+#endif
 			connectionInfo.DataChannelDict.Remove(dataChannel.label);
 		};
 	}
@@ -214,7 +249,9 @@ public class RtcConnectionManager : IDisposable
 	private void _onDataChannelError(RTCConnectionInfo connectionInfo, RTCDataChannel dc, string e)
 	{
 		string dcLabel = dc.label;
+#if DEBUG
 		Console.WriteLine($"DataChannel[{dcLabel}@{connectionInfo.SdpId}] error: {e}");
+#endif
 		connectionInfo.DataChannelDict.Remove(dcLabel);
 		dc.close();
 	}
