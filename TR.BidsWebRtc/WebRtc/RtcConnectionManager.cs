@@ -41,10 +41,29 @@ public class RtcConnectionManager : IDisposable
 		public byte[] Data { get; } = data;
 	}
 
+	public class OnDataChannelStateChangedEventArgs(
+		Guid clientId,
+		RTCDataChannel dataChannel
+	) : EventArgs
+	{
+		public Guid ClientId { get; } = clientId;
+		public RTCDataChannel DataChannel { get; } = dataChannel;
+	}
+
+	public class OnConnectionClosedEventArgs(
+		Guid clientId
+	) : EventArgs
+	{
+		public Guid ClientId { get; } = clientId;
+	}
+
 	private readonly Dictionary<Guid, RTCConnectionInfo> _establishedConnectionDict = [];
 	public IReadOnlyDictionary<string, RTCDataChannel> GetDataChannelDict(Guid clientId) => _establishedConnectionDict[clientId].DataChannelDict;
 
 	public event EventHandler<OnDataGotEventArgs>? OnDataGot;
+	public event EventHandler<OnDataChannelStateChangedEventArgs>? OnDataChannelOpen;
+	public event EventHandler<OnDataChannelStateChangedEventArgs>? OnDataChannelClosed;
+	public event EventHandler<OnConnectionClosedEventArgs>? OnConnectionClosed;
 
 	const string DEFAULT_DATA_CHANNEL_LABEL = "bids-rtc-data-main";
 	const int ANSWER_CHECK_INTERVAL_MS = 1000;
@@ -108,6 +127,9 @@ public class RtcConnectionManager : IDisposable
 #if DEBUG
 					Console.WriteLine($"Disconnected: {connectionInfo.SdpId}");
 #endif
+					peerConnection.close();
+					peerConnection.Dispose();
+					OnConnectionClosed?.Invoke(this, new OnConnectionClosedEventArgs(connectionInfo.ClientId!.Value));
 					if (connectionInfo.SdpId is not null)
 					{
 						var sdpId = connectionInfo.SdpId.Value;
@@ -119,6 +141,8 @@ public class RtcConnectionManager : IDisposable
 					Console.WriteLine($"Failed: {connectionInfo.SdpId}");
 #endif
 					peerConnection.close();
+					peerConnection.Dispose();
+					OnConnectionClosed?.Invoke(this, new OnConnectionClosedEventArgs(connectionInfo.ClientId!.Value));
 					if (connectionInfo.SdpId is not null)
 					{
 						var sdpId = connectionInfo.SdpId.Value;
@@ -129,6 +153,8 @@ public class RtcConnectionManager : IDisposable
 #if DEBUG
 					Console.WriteLine($"Closed: {connectionInfo.SdpId}");
 #endif
+					peerConnection.Dispose();
+					OnConnectionClosed?.Invoke(this, new OnConnectionClosedEventArgs(connectionInfo.ClientId!.Value));
 					if (connectionInfo.SdpId is not null)
 					{
 						var sdpId = connectionInfo.SdpId.Value;
@@ -147,6 +173,7 @@ public class RtcConnectionManager : IDisposable
 			if (e.IsOpened)
 			{
 				connectionInfo.DataChannelDict[e.label] = e;
+				OnDataChannelOpen?.Invoke(this, new OnDataChannelStateChangedEventArgs(connectionInfo.ClientId!.Value, e));
 			}
 		};
 
@@ -229,6 +256,7 @@ public class RtcConnectionManager : IDisposable
 			dataChannel.send($"Hello, world! from {connectionInfo.SdpId}[{_role}]@{dataChannel.label}");
 #endif
 			connectionInfo.DataChannelDict[dataChannel.label] = dataChannel;
+			OnDataChannelOpen?.Invoke(this, new OnDataChannelStateChangedEventArgs(connectionInfo.ClientId!.Value, dataChannel));
 		};
 		dataChannel.onmessage += (dc, protocol, data) =>
 		{
@@ -243,6 +271,7 @@ public class RtcConnectionManager : IDisposable
 			Console.WriteLine($"DataChannel closed for {connectionInfo.SdpId}[{_role}]@{dataChannel.label}");
 #endif
 			connectionInfo.DataChannelDict.Remove(dataChannel.label);
+			OnDataChannelClosed?.Invoke(this, new OnDataChannelStateChangedEventArgs(connectionInfo.ClientId!.Value, dataChannel));
 		};
 	}
 
