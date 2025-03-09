@@ -10,4 +10,13 @@
 		<ProjectReference Include="..\TR.BidsWebRtc\TR.BidsWebRtc.csproj" />
 	</ItemGroup>
 
+	<ItemGroup>
+		<PackageReference Include="TR.BIDSSMemLib.structs" Version="1.1.0" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<None Remove="token.txt" />
+		<EmbeddedResource Include="token.txt" />
+	</ItemGroup>
+
 </Project>
