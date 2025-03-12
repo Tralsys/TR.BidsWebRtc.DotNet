@@ -96,7 +96,7 @@ public class RtcConnectionManager : IDisposable
 		_cts.Cancel();
 		foreach (var connectionInfo in _establishedConnectionDict.Values)
 		{
-			connectionInfo.PeerConnection.close();
+			connectionInfo?.PeerConnection.close();
 		}
 		_establishedConnectionDict.Clear();
 	}

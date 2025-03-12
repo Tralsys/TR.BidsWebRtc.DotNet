@@ -52,11 +52,12 @@ public class TokenManager(
 
 	private async Task<string> RefreshTokenAsync()
 	{
-		using var request = new HttpRequestMessage(HttpMethod.Post, _TokenRefreshUrl)
+		using var request = new HttpRequestMessage(HttpMethod.Put, _TokenRefreshUrl)
 		{
 			Content = new ByteArrayContent(_refreshToken),
-			Headers = { { "Content-Type", "application/jose" } }
 		};
+		request.Headers.Add("Accept", "application/jose");
+		request.Content.Headers.ContentType = new("application/jose");
 		using var response = await _httpClient.SendAsync(request);
 
 		response.EnsureSuccessStatusCode();

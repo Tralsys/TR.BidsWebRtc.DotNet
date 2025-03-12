@@ -75,32 +75,48 @@ class Program : IDisposable
 	{
 		System.Console.WriteLine("Running...");
 		BIDSSharedMemoryData bsmd = new();
-		int bsmdSize = Marshal.SizeOf<BIDSSharedMemoryData>();
+		int specSize = Marshal.SizeOf<Spec>();
+		int stateSize = Marshal.SizeOf<State>();
+		int handleSize = Marshal.SizeOf<Hand>();
+		int bsmdSize = 1 + 4 + specSize + stateSize + handleSize + 1;
+		int specOffset = 1 + 4;
+		int stateOffset = specOffset + specSize;
+		int handleOffset = stateOffset + stateSize;
+		int doorClosedOffset = handleOffset + handleSize;
+		System.Console.WriteLine($"BIDSSharedMemoryData size: {bsmdSize}");
 		byte[] data = new byte[bsmdSize + 4];
 		data[0] = 0x74;
 		data[1] = 0x72;
 		data[2] = 0x57;
 		data[3] = 0x42;
-		IntPtr bsmdPtr = Marshal.AllocHGlobal(bsmdSize);
+		IntPtr ptr = Marshal.AllocHGlobal(bsmdSize);
 		while (!cts.IsCancellationRequested)
 		{
-			byte[] message = Encoding.UTF8.GetBytes($"Hello, World! @ {DateTime.Now}");
-			manager.BroadcastMessage(message);
-
 			bsmd.IsDoorClosed = !bsmd.IsDoorClosed;
 			bsmd.SpecData.C = Random.Shared.Next() % 32;
 			bsmd.StateData.Z = Random.Shared.NextDouble() * Random.Shared.Next();
-			bsmd.StateData.T = (int)DateTime.Now.TimeOfDay.TotalSeconds;
 			bsmd.StateData.V = Random.Shared.NextSingle() * Random.Shared.Next();
+			bsmd.StateData.T = (int)(DateTime.Now.TimeOfDay.TotalSeconds * 1000);
 
-			Marshal.StructureToPtr(bsmd, bsmdPtr, false);
-			Marshal.Copy(bsmdPtr, data, 4, bsmdSize);
+			data[4] = bsmd.IsEnabled ? (byte)1 : (byte)0;
+			BitConverter.GetBytes(bsmd.VersionNum).CopyTo(data, 4 + 1);
+
+			Marshal.StructureToPtr(bsmd.SpecData, ptr, false);
+			Marshal.Copy(ptr, data, 4 + specOffset, specSize);
+
+			Marshal.StructureToPtr(bsmd.StateData, ptr, false);
+			Marshal.Copy(ptr, data, 4 + stateOffset, stateSize);
+
+			Marshal.StructureToPtr(bsmd.HandleData, ptr, false);
+			Marshal.Copy(ptr, data, 4 + handleOffset, handleSize);
+
+			data[4 + doorClosedOffset] = bsmd.IsDoorClosed ? (byte)1 : (byte)0;
 
 			manager.BroadcastMessage(data);
 
 			await Task.Delay(1000, cts.Token);
 		}
-		Marshal.FreeHGlobal(bsmdPtr);
+		Marshal.FreeHGlobal(ptr);
 	}
 
 	public void Dispose()
