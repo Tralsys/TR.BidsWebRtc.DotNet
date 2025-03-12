@@ -5,8 +5,22 @@
 		<LangVersion>12.0</LangVersion>
 		<Nullable>enable</Nullable>
 		<Version>0.0.1</Version>
+		<Authors>Tetsu Otter</Authors>
+		<Company>Tech Otter</Company>
+		<Product>BIDS Project</Product>
+		<Copyright>Copyright (C) 2025 Tetsu Otter</Copyright>
 		<PackageLicenseExpression>MIT</PackageLicenseExpression>
+		<PackageProjectUrl>https://github.com/TetsuOtter/TR.BidsWebRtc.DotNet</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/TetsuOtter/TR.BidsWebRtc.DotNet</RepositoryUrl>
+		<RepositoryType>git</RepositoryType>
+		<Description>It provides easy access to the BIDS-RTC bus.</Description>
+		<PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
 	</PropertyGroup>
+
+	<ItemGroup>
+		<None Include="README.md" Pack="true" PackagePath="\" />
+	</ItemGroup>
 
 	<ItemGroup>
 		<PackageReference Include="SIPSorcery" Version="8.0.9" />
