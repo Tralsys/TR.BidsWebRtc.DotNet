@@ -182,6 +182,7 @@ public class RtcConnectionManager : IDisposable
 
 	private async Task _registerOfferAsync()
 	{
+		// TODO: タイムアウト後の再登録処理
 		try
 		{
 			RTCConnectionInfo connectionInfo = _createRTCPeerConnection();
