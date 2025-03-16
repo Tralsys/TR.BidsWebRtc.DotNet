@@ -19,34 +19,34 @@ public class RtcConnectionManager : IDisposable
 		Provider,
 		Subscriber,
 	}
-	private class RTCConnectionInfo()
+	public class RTCConnectionInfo()
 	{
-		public RTCPeerConnection PeerConnection { get; } = new();
+		internal RTCPeerConnection PeerConnection { get; } = new();
 
-		public Guid? SdpId { get; set; } = null;
+		internal Guid? SdpId { get; set; } = null;
 		public Guid? ClientId { get; set; } = null;
 
-		public Dictionary<string, RTCDataChannel> DataChannelDict { get; } = [];
+		internal Dictionary<string, RTCDataChannel> DataChannelDict { get; } = [];
 		public RTCPeerConnectionState ConnectionState => PeerConnection.connectionState;
 	}
 
 	public class OnDataGotEventArgs(
-		Guid clientId,
+		RTCConnectionInfo connectionInfo,
 		RTCDataChannel dataChannel,
 		byte[] data
 	) : EventArgs
 	{
-		public Guid ClientId { get; } = clientId;
+		public RTCConnectionInfo ConnectionInfo { get; } = connectionInfo;
 		public RTCDataChannel DataChannel { get; } = dataChannel;
 		public byte[] Data { get; } = data;
 	}
 
 	public class OnDataChannelStateChangedEventArgs(
-		Guid clientId,
+		RTCConnectionInfo connectionInfo,
 		RTCDataChannel dataChannel
 	) : EventArgs
 	{
-		public Guid ClientId { get; } = clientId;
+		public RTCConnectionInfo ConnectionInfo { get; } = connectionInfo;
 		public RTCDataChannel DataChannel { get; } = dataChannel;
 	}
 
@@ -113,54 +113,65 @@ public class RtcConnectionManager : IDisposable
 
 		peerConnection.onconnectionstatechange += (state) =>
 		{
-			switch (state)
+			try
 			{
-				case RTCPeerConnectionState.connected:
-					registration.Dispose();
-					if (connectionInfo.SdpId is not null)
-					{
-						var sdpId = connectionInfo.SdpId.Value;
-						_establishedConnectionDict[sdpId] = connectionInfo;
-					}
-					break;
-				case RTCPeerConnectionState.disconnected:
+				switch (state)
+				{
+					case RTCPeerConnectionState.connected:
+						registration.Dispose();
+						if (connectionInfo.SdpId is not null)
+						{
+							var sdpId = connectionInfo.SdpId.Value;
+							_establishedConnectionDict[sdpId] = connectionInfo;
+						}
+						break;
+					case RTCPeerConnectionState.disconnected:
 #if DEBUG
-					Console.WriteLine($"Disconnected: {connectionInfo.SdpId}");
+						Console.WriteLine($"Disconnected: {connectionInfo.SdpId}");
 #endif
-					peerConnection.close();
-					peerConnection.Dispose();
-					OnConnectionClosed?.Invoke(this, new OnConnectionClosedEventArgs(connectionInfo.ClientId!.Value));
-					if (connectionInfo.SdpId is not null)
-					{
-						var sdpId = connectionInfo.SdpId.Value;
-						_establishedConnectionDict.Remove(sdpId);
-					}
-					break;
-				case RTCPeerConnectionState.failed:
+						peerConnection.close();
+						peerConnection.Dispose();
+						OnConnectionClosed?.Invoke(this, new OnConnectionClosedEventArgs(connectionInfo.ClientId!.Value));
+						if (connectionInfo.SdpId is not null)
+						{
+							var sdpId = connectionInfo.SdpId.Value;
+							_establishedConnectionDict.Remove(sdpId);
+						}
+						break;
+					case RTCPeerConnectionState.failed:
 #if DEBUG
-					Console.WriteLine($"Failed: {connectionInfo.SdpId}");
+						Console.WriteLine($"Failed: {connectionInfo.SdpId}");
 #endif
-					peerConnection.close();
-					peerConnection.Dispose();
-					OnConnectionClosed?.Invoke(this, new OnConnectionClosedEventArgs(connectionInfo.ClientId!.Value));
-					if (connectionInfo.SdpId is not null)
-					{
-						var sdpId = connectionInfo.SdpId.Value;
-						_establishedConnectionDict.Remove(sdpId);
-					}
-					break;
-				case RTCPeerConnectionState.closed:
+						peerConnection.close();
+						peerConnection.Dispose();
+						OnConnectionClosed?.Invoke(this, new OnConnectionClosedEventArgs(connectionInfo.ClientId!.Value));
+						if (connectionInfo.SdpId is not null)
+						{
+							var sdpId = connectionInfo.SdpId.Value;
+							_establishedConnectionDict.Remove(sdpId);
+						}
+						break;
+					case RTCPeerConnectionState.closed:
 #if DEBUG
-					Console.WriteLine($"Closed: {connectionInfo.SdpId}");
+						Console.WriteLine($"Closed: {connectionInfo.SdpId}");
 #endif
-					peerConnection.Dispose();
-					OnConnectionClosed?.Invoke(this, new OnConnectionClosedEventArgs(connectionInfo.ClientId!.Value));
-					if (connectionInfo.SdpId is not null)
-					{
-						var sdpId = connectionInfo.SdpId.Value;
-						_establishedConnectionDict.Remove(sdpId);
-					}
-					break;
+						peerConnection.Dispose();
+						OnConnectionClosed?.Invoke(this, new OnConnectionClosedEventArgs(connectionInfo.ClientId!.Value));
+						if (connectionInfo.SdpId is not null)
+						{
+							var sdpId = connectionInfo.SdpId.Value;
+							_establishedConnectionDict.Remove(sdpId);
+						}
+						break;
+				}
+
+			}
+			catch (Exception ex)
+			{
+				// TODO: 良い感じにエラー処理する
+#if DEBUG
+				Console.WriteLine($"OnConnectionStateChange Error: {ex}");
+#endif
 			}
 		};
 
@@ -169,11 +180,22 @@ public class RtcConnectionManager : IDisposable
 #if DEBUG
 			Console.WriteLine($"DataChannel received: {e.label}[{_role}]@{connectionInfo.SdpId}");
 #endif
-			_setupDataChannel(connectionInfo, e);
-			if (e.IsOpened)
+			try
 			{
-				connectionInfo.DataChannelDict[e.label] = e;
-				OnDataChannelOpen?.Invoke(this, new OnDataChannelStateChangedEventArgs(connectionInfo.ClientId!.Value, e));
+
+				_setupDataChannel(connectionInfo, e);
+				if (e.IsOpened)
+				{
+					connectionInfo.DataChannelDict[e.label] = e;
+					OnDataChannelOpen?.Invoke(this, new OnDataChannelStateChangedEventArgs(connectionInfo, e));
+				}
+			}
+			catch (Exception ex)
+			{
+				// TODO: 良い感じにエラー処理する
+#if DEBUG
+				Console.WriteLine($"OnDataChannel Error: {ex}");
+#endif
 			}
 		};
 
@@ -257,14 +279,23 @@ public class RtcConnectionManager : IDisposable
 			dataChannel.send($"Hello, world! from {connectionInfo.SdpId}[{_role}]@{dataChannel.label}");
 #endif
 			connectionInfo.DataChannelDict[dataChannel.label] = dataChannel;
-			OnDataChannelOpen?.Invoke(this, new OnDataChannelStateChangedEventArgs(connectionInfo.ClientId!.Value, dataChannel));
+			OnDataChannelOpen?.Invoke(this, new OnDataChannelStateChangedEventArgs(connectionInfo, dataChannel));
 		};
 		dataChannel.onmessage += (dc, protocol, data) =>
 		{
 #if DEBUG
 			Console.WriteLine($"DataChannel message from {connectionInfo.SdpId}[{_role}]@{dataChannel.label}: {data} (protocol: {protocol}, length: {data.Length})");
 #endif
-			OnDataGot?.Invoke(this, new OnDataGotEventArgs(connectionInfo.ClientId!.Value, dataChannel, data));
+			try
+			{
+				OnDataGot?.Invoke(this, new OnDataGotEventArgs(connectionInfo, dataChannel, data));
+			}
+			catch (Exception ex)
+			{
+#if DEBUG
+				Console.WriteLine($"OnDataGot Error: {ex}");
+#endif
+			}
 		};
 		dataChannel.onclose += () =>
 		{
@@ -272,7 +303,7 @@ public class RtcConnectionManager : IDisposable
 			Console.WriteLine($"DataChannel closed for {connectionInfo.SdpId}[{_role}]@{dataChannel.label}");
 #endif
 			connectionInfo.DataChannelDict.Remove(dataChannel.label);
-			OnDataChannelClosed?.Invoke(this, new OnDataChannelStateChangedEventArgs(connectionInfo.ClientId!.Value, dataChannel));
+			OnDataChannelClosed?.Invoke(this, new OnDataChannelStateChangedEventArgs(connectionInfo, dataChannel));
 		};
 	}
 
@@ -288,13 +319,23 @@ public class RtcConnectionManager : IDisposable
 
 	private async Task<SDPAnswerInfo> _onOfferReceivedAsync(SDPOfferInfo offerInfo)
 	{
-		var connectionInfo = _createRTCPeerConnection(offerInfo.SdpId);
-		RTCPeerConnection peerConnection = connectionInfo.PeerConnection;
+		try
+		{
+			var connectionInfo = _createRTCPeerConnection(offerInfo.SdpId);
+			RTCPeerConnection peerConnection = connectionInfo.PeerConnection;
 
-		peerConnection.SetRemoteDescription(SdpType.offer, SDP.ParseSDPDescription(offerInfo.RawOffer));
-		var answer = peerConnection.createAnswer();
-		await peerConnection.setLocalDescription(answer);
-		return new(offerInfo.SdpId, _sdpExchangeApi.ClientId, answer.sdp);
+			peerConnection.SetRemoteDescription(SdpType.offer, SDP.ParseSDPDescription(offerInfo.RawOffer));
+			var answer = peerConnection.createAnswer();
+			await peerConnection.setLocalDescription(answer);
+			return new(offerInfo.SdpId, _sdpExchangeApi.ClientId, answer.sdp);
+		}
+		catch (Exception e)
+		{
+#if DEBUG
+			Console.WriteLine($"Error: {e}");
+#endif
+			throw e;
+		}
 	}
 
 	public void BroadcastMessage(byte[] message)

@@ -67,7 +67,7 @@ class Program : IDisposable
 		);
 		manager.OnDataGot += (sender, e) =>
 		{
-			System.Console.WriteLine($"Data got from {e.ClientId}: {Encoding.UTF8.GetString(e.Data)}");
+			System.Console.WriteLine($"Data got from {e.ConnectionInfo.ClientId}: {Encoding.UTF8.GetString(e.Data)}");
 		};
 	}
 
